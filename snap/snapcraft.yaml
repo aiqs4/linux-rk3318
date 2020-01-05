@@ -1,0 +1,66 @@
+name: linux-rk3318
+adopt-info: kernel
+summary: The Ubuntu generic Linux kernel for rockchip rk3318
+description: |
+  This Ubuntu generic Linux kernel is built for the Rockchip rk3318
+
+grade: stable
+confinement: strict
+type: kernel
+
+
+architectures:
+  - build-on: amd64
+    run-on: armhf
+
+build-packages:
+  - bison
+  - flex
+
+parts:
+  firmware:
+    plugin: nil
+    source: git://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git
+    source-depth: 1
+    override-build: |
+      mkdir -p $SNAPCRAFT_PART_INSTALL/firmware
+      cp -av ./* $SNAPCRAFT_PART_INSTALL/firmware/
+      # cp -av ../../../brcmfmac-firmware/* $SNAPCRAFT_PART_INSTALL/firmware/brcm/
+  kernel:
+    plugin: kernel
+    source: https://github.com/sd-hd/ubuntu-eoan.git
+    source-type: git
+    source-depth: 1
+    source-branch: rk3318
+    # source-tag: Ubuntu-rk3318-5.3.0-1015.17
+    # kconfigflavour: rk3318 # raspi2
+    # kdefconfig: []
+    kconfigs:
+      - CONFIG_DEBUG_INFO=n
+      # the below allows booting from USB 3.1 SSDs without initrd modules
+      - CONFIG_ENCLOSURE_SERVICES=y
+      - CONFIG_SCSI_SAS_ATTRS=y
+      - CONFIG_USB_STORAGE=y
+      - CONFIG_USB_UAS=y
+      # required to boot from SD card without having to load modules in initrd
+      - CONFIG_REGULATOR_GPIO=y
+      - CONFIG_MMC_SDHCI_IPROC=y
+    override-pull: |
+      snapcraftctl pull
+      echo "setting version to $(git tag|sed 's/^Ubuntu-//')"
+      snapcraftctl set-version "$(git tag|sed 's/^Ubuntu-//')"
+    override-build: |
+      export ARCH=armhf
+      export CROSS_COMPILE=arm-linux-gnueabihf-
+      cp debian/scripts/retpoline-extract-one \
+        $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
+      snapcraftctl build
+    kernel-with-firmware: false
+    build-packages:
+      - cpio
+      - libssl-dev
+      - libelf-dev
+      - on amd64 to armhf:
+        - gcc-arm-linux-gnueabihf:amd64
+        - gcc-aarch64-linux-gnu:amd64 ## TODO: remove one of this
+    after: [ firmware ]
